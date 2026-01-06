@@ -1,0 +1,66 @@
+const express = require('express');
+const dotenv = require('dotenv');
+const cors = require('cors');
+const studentRoutes = require('./routes/studentRoutes');
+const batchRoutes = require('./routes/batchRoutes');
+const classRoutes = require('./routes/classRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const studentFeesRoute = require('./routes/studentFeesRoute');
+const paymentLockRoutes = require('./routes/paymentLockRoutes');
+const notificationsRouter = require("./routes/notifications");
+const razorpayRoutes = require("./routes/razorpayRoutes");
+const webhookPaymentRoutes = require("./routes/webhookpaymentRoutes");
+const attendanceRoutes = require('./routes/attendanceRoutes');
+const eventRoutes = require('./routes/eventRoutes');
+const announcementRoutes = require('./routes/announcementRoutes');
+const lsrwRoutes = require('./routes/lsrwRoutes');
+const speakingRoutes = require('./routes/speakingRoutes');
+const readingRoutes = require('./routes/readingRoutes');
+const writingRoutes = require('./routes/writingRoutes');
+
+dotenv.config();
+
+const app = express();
+app.use(cors());
+
+// ✅ Razorpay webhook needs raw body
+app.use("/api/razorpay", webhookPaymentRoutes);
+
+// ✅ JSON parser for all other routes
+app.use(express.json());
+
+// ✅ Student, Batch, Class, Payment APIs
+app.use('/api/students', studentRoutes);
+app.use('/api/batches', batchRoutes);
+app.use('/api/classes', classRoutes);
+app.use('/api', studentFeesRoute);
+app.use('/api/payment-lock', paymentLockRoutes);
+app.use("/api/notifications", notificationsRouter);
+app.use("/api/payments", paymentRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/announcements', announcementRoutes);
+app.use('/api/lsrw', lsrwRoutes);
+app.use('/api/speaking', speakingRoutes);
+app.use('/api/reading', readingRoutes);
+app.use('/api/writing', writingRoutes);
+
+// ✅ Razorpay APIs
+app.use("/api/razorpay", razorpayRoutes);
+
+// 🔔 Load EMI expiry notification cron job
+require("./cron/emiExpiryNotifications");
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ success: false, message: "API endpoint not found" });
+});
+
+// Global error handler (optional)
+app.use((err, req, res, next) => {
+    console.error("Global error:", err);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+});
+
+const PORT = process.env.PORT || 3006;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
