@@ -11,70 +11,79 @@ cron.schedule("0 0 * * *", async () => {
           const today = new Date();
           today.setUTCHours(0, 0, 0, 0); // reset time in UTC for comparison
 
-          console.log(`🔍 Checking for enrollments expiring soon...`);
+          console.log(`🔍 Checking for EMI payments due soon...`);
 
-          // 1️⃣ Get all active enrollments with batch info
-          // EXCLUDE permanent enrollments (final EMI completed or full payment) - no expiry notifications needed
-          const { data: enrollments, error } = await supabase
-            .from("enrollment")
-            .select(
-              `
-                enrollment_id,
+          // 1️⃣ Get all EMI payments with next_emi_due_date
+          const { data: payments, error: paymentFetchError } = await supabase
+            .from("student_course_payment")
+            .select(`
+              payment_id,
+              enrollment_id,
+              payment_type,
+              next_emi_due_date,
+              current_emi,
+              emi_duration,
+              enrollment:enrollment!student_course_payment_enrollment_id_fkey(
                 student,
-                end_date,
-                is_permanent,
-                batch (
-                  batch_name
+                batch:batches!enrollment_batch_fkey(
+                  batch_name,
+                  course:courses!batches_course_id_fkey(course_name)
                 )
-            `
-            )
-            .eq("status", true)
-            .neq("is_permanent", true); // Exclude permanent enrollments
+              )
+            `)
+            .eq("payment_type", "emi")
+            .not("next_emi_due_date", "is", null)
+            .eq("status", true); // Only approved payments
 
-          if (error) {
-            console.error("❌ Error fetching enrollments:", error);
+          if (paymentFetchError) {
+            console.error("❌ Error fetching EMI payments:", paymentFetchError);
             return;
           }
 
-          if (!enrollments || enrollments.length === 0) {
-            console.log("ℹ️ No active enrollments found.");
+          if (!payments || payments.length === 0) {
+            console.log("ℹ️ No EMI payments with due dates found.");
             return;
           }
 
-          // 2️⃣ Loop through each enrollment
-          for (const enr of enrollments) {
-            if (!enr.end_date) continue;
+          // 2️⃣ Loop through each payment
+          for (const payment of payments) {
+            if (!payment.next_emi_due_date || !payment.enrollment) continue;
 
-            const endDate = new Date(enr.end_date);
-            endDate.setUTCHours(0, 0, 0, 0); // reset time in UTC
+            const dueDate = new Date(payment.next_emi_due_date);
+            dueDate.setUTCHours(0, 0, 0, 0); // reset time in UTC
             const diffDays = Math.ceil(
-              (endDate - today) / (1000 * 60 * 60 * 24)
+              (dueDate - today) / (1000 * 60 * 60 * 24)
             );
 
             // Only notify if 1, 2, or 3 days remaining
             if (![1, 2, 3].includes(diffDays)) continue;
 
-            // Check last payment
-            const { data: payment, error: paymentError } = await supabase
-              .from("student_course_payment")
-              .select("payment_type")
-              .eq("enrollment_id", enr.enrollment_id)
-              .order("created_at", { ascending: false })
-              .limit(1)
-              .single();
+            // Check if this is the final EMI
+            const isFinalEMI = payment.current_emi >= payment.emi_duration;
+            if (isFinalEMI) continue; // Skip final EMI - no need for due date notifications
 
-            if (paymentError) {
-              console.error(
-                `❌ Error fetching payment for enrollment ${enr.enrollment_id}:`,
-                paymentError
-              );
-              continue;
+            const studentId = payment.enrollment.student;
+            const batchName = payment.enrollment.batch?.batch_name || "your course";
+            const courseName = payment.enrollment.batch?.course?.course_name || "course";
+
+            // Format due date in short format (e.g., "Feb 15, 2024")
+            const dueDateShort = dueDate.toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric',
+              year: 'numeric'
+            });
+
+            // Create styled notification message based on days remaining
+            let message = "";
+            if (diffDays === 3) {
+              message = `⏰ EMI Payment Reminder - 3 Days Left\n\nCourse: ${courseName}\nBatch: ${batchName}\n\nDue Date: ${dueDateShort}\n\nPlease make your payment on or before the due date.`;
+            } else if (diffDays === 2) {
+              message = `⚠️ EMI Payment Reminder - 2 Days Left\n\nCourse: ${courseName}\nBatch: ${batchName}\n\nDue Date: ${dueDateShort}\n\nPlease make your payment soon to avoid disruption.`;
+            } else if (diffDays === 1) {
+              message = `🚨 Final Reminder - Payment Due Tomorrow!\n\nCourse: ${courseName}\nBatch: ${batchName}\n\nDue Date: ${dueDateShort}\n\nPlease make your payment immediately.`;
             }
 
-            // Only notify EMI payments
-            if (payment?.payment_type !== "emi") continue;
-
-            // Check if notification already sent today
+            // Check if notification already sent today for this specific day count
             const startOfDay = today.toISOString();
             const endOfDay = new Date(today);
             endOfDay.setUTCHours(23, 59, 59, 999);
@@ -83,13 +92,10 @@ cron.schedule("0 0 * * *", async () => {
               await supabase
                 .from("notifications")
                 .select("*")
-                .eq("student", enr.student)
-                .eq(
-                  "message",
-                  `Your course "${enr.batch.batch_name}" will expire on ${enr.end_date}. Please make a payment to renew.`
-                )
+                .eq("student", studentId)
+                .eq("message", message)
                 .gte("created_at", startOfDay)
-                .lte("created_at", endOfDay.toISOString()); // <-- convert to ISO UTC
+                .lte("created_at", endOfDay.toISOString());
 
             if (notifCheckError) {
               console.error(
@@ -99,26 +105,28 @@ cron.schedule("0 0 * * *", async () => {
               continue;
             }
 
-            if (existingNotif && existingNotif.length > 0) continue; // skip if already sent today
+            if (existingNotif && existingNotif.length > 0) {
+              console.log(`⏭️ Notification already sent today for student ${studentId} (${diffDays} days remaining)`);
+              continue; // skip if already sent today
+            }
 
             // 3️⃣ Insert notification
-            const message = `Your course "${enr.batch.batch_name}" will expire on ${enr.end_date}. Please make a payment to renew.`;
-
             const { error: notifError } = await supabase
               .from("notifications")
               .insert({
-                student: enr.student,
+                student: studentId,
                 message,
+                is_read: false
               });
 
             if (notifError) {
               console.error(
-                `❌ Failed to insert notification for student ${enr.student}:`,
+                `❌ Failed to insert notification for student ${studentId}:`,
                 notifError
               );
             } else {
               console.log(
-                `🔔 Notification sent to student ${enr.student} (expires in ${diffDays} days)`
+                `🔔 Notification sent to student ${studentId} (${diffDays} days until due date: ${dueDateStr})`
               );
             }
           }

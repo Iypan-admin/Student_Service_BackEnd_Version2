@@ -1,9 +1,11 @@
 const supabase = require('../config/supabaseClient');
+const { supabaseAdmin } = require('../config/supabaseClient');
 const bcrypt = require('bcryptjs');
 const generateToken = require('../utils/generateToken');
 const { get } = require('../routes/batchRoutes');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const path = require('path');
 
 // Register Student
 const registerStudent = async (req, res) => {
@@ -43,7 +45,43 @@ const registerStudent = async (req, res) => {
         return res.status(400).json({ error: error.message });
     }
 
-    res.status(201).json({ message: 'Registration successful', student: data[0] });
+    const student = data[0];
+
+    // Create notification for Academic Coordinators when student registers (status = false means pending approval)
+    try {
+        // Get all academic coordinators using supabaseAdmin (needed for cross-table access)
+        const { data: academicCoordinators, error: coordError } = await supabaseAdmin
+            .from('academic_coordinator')
+            .select('user_id');
+
+        if (!coordError && academicCoordinators && academicCoordinators.length > 0) {
+            // Create notification for each academic coordinator
+            const notifications = academicCoordinators.map(coord => ({
+                academic_coordinator_id: coord.user_id,
+                message: `${name} registered, waiting for your approval`,
+                type: 'STUDENT_REGISTERED',
+                related_id: student.student_id,
+                is_read: false
+            }));
+
+            // Insert notifications into academic_notifications table using supabaseAdmin
+            const { error: notifError } = await supabaseAdmin
+                .from('academic_notifications')
+                .insert(notifications);
+
+            if (notifError) {
+                console.error('Error creating academic notifications:', notifError);
+                // Don't fail the registration if notification creation fails
+            } else {
+                console.log(`✅ Notifications sent to ${academicCoordinators.length} academic coordinator(s) for student ${name}`);
+            }
+        }
+    } catch (notifErr) {
+        console.error('Error in notification creation:', notifErr);
+        // Don't fail the registration if notification creation fails
+    }
+
+    res.status(201).json({ message: 'Registration successful', student: student });
 };
 
 // Login Student
@@ -91,7 +129,7 @@ const getStudentDetails = async (req, res) => {
         .from('students')
         .select(`
             student_id, created_at, registration_number, name, email, password, phone, status,
-            is_referred, referred_by_center,
+            is_referred, referred_by_center, profile_picture,
             state:states (*),
             center:centers!students_center_fkey (*),
             referring_center:centers!students_referred_by_center_fkey (*)
@@ -123,6 +161,126 @@ const updateStudent = async (req, res) => {
     }
 
     res.json({ message: 'Profile updated successfully' });
+};
+
+// Upload Student Profile Picture
+const uploadProfilePicture = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        const student_id = req.student.student_id;
+        const fileBuffer = req.file.buffer;
+        const fileExt = path.extname(req.file.originalname);
+        const fileName = `${Date.now()}${fileExt}`;
+        const filePath = `${student_id}/${fileName}`;
+
+        // Upload to Supabase storage (bucket: user-profiles - same as admin portal)
+        const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+            .from('user-profiles')
+            .upload(filePath, fileBuffer, { upsert: true });
+
+        if (uploadError) {
+            console.error('Storage upload error:', uploadError);
+            return res.status(500).json({ error: 'Failed to upload profile picture to storage' });
+        }
+
+        // Get public URL
+        const { data: urlData, error: urlError } = supabaseAdmin.storage
+            .from('user-profiles')
+            .getPublicUrl(filePath);
+
+        if (urlError) {
+            console.error('Get public URL error:', urlError);
+            return res.status(500).json({ error: 'Failed to get profile picture URL' });
+        }
+
+        const publicUrl = urlData.publicUrl;
+
+        // Update student's profile_picture in database
+        const { error: updateError } = await supabase
+            .from('students')
+            .update({ profile_picture: publicUrl })
+            .eq('student_id', student_id);
+
+        if (updateError) {
+            console.error('Database update error:', updateError);
+            return res.status(500).json({ error: 'Failed to update profile picture in database' });
+        }
+
+        res.status(200).json({ 
+            success: true, 
+            message: 'Profile picture uploaded successfully',
+            data: publicUrl 
+        });
+    } catch (error) {
+        console.error('Upload profile picture error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+// Delete Student Profile Picture
+const deleteProfilePicture = async (req, res) => {
+    try {
+        const student_id = req.student.student_id;
+
+        // Get current profile picture URL from database
+        const { data: studentData, error: fetchError } = await supabase
+            .from('students')
+            .select('profile_picture')
+            .eq('student_id', student_id)
+            .single();
+
+        if (fetchError) {
+            console.error('Error fetching student data:', fetchError);
+            return res.status(500).json({ error: 'Failed to fetch student data' });
+        }
+
+        // If profile picture exists, delete from storage
+        if (studentData?.profile_picture) {
+            try {
+                // Extract file path from URL
+                // URL format: https://[project].supabase.co/storage/v1/object/public/user-profiles/[student_id]/[filename]
+                const urlParts = studentData.profile_picture.split('/user-profiles/');
+                if (urlParts.length > 1) {
+                    const filePath = urlParts[1];
+                    
+                    // Delete from Supabase storage
+                    const { error: deleteError } = await supabaseAdmin.storage
+                        .from('user-profiles')
+                        .remove([filePath]);
+
+                    if (deleteError) {
+                        console.error('Storage delete error:', deleteError);
+                        // Continue to remove from database even if storage delete fails
+                    }
+                }
+            } catch (storageError) {
+                console.error('Error deleting from storage:', storageError);
+                // Continue to remove from database even if storage delete fails
+            }
+        }
+
+        // Remove profile_picture from database
+        const { error: updateError } = await supabase
+            .from('students')
+            .update({ profile_picture: null })
+            .eq('student_id', student_id);
+
+        if (updateError) {
+            console.error('Database update error:', updateError);
+            return res.status(500).json({ error: 'Failed to delete profile picture from database' });
+        }
+
+        res.status(200).json({ 
+            success: true, 
+            message: 'Profile picture deleted successfully'
+        });
+    } catch (error) {
+        console.error('Delete profile picture error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 };
 
 // Delete Student
@@ -318,5 +476,7 @@ module.exports = {
     getCentersByState,
     getAllCenters,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    uploadProfilePicture,
+    deleteProfilePicture
 };

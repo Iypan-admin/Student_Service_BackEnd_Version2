@@ -3,7 +3,8 @@ const supabase = require("../config/supabaseClient");
 
 /**
  * GET /api/notifications
- * Fetch unread notifications for the logged-in student
+ * Fetch notifications for the logged-in student
+ * Query param ?all=true returns all notifications (read + unread), otherwise only unread
  */
 const getNotifications = async (req, res) => {
     try {
@@ -13,13 +14,19 @@ const getNotifications = async (req, res) => {
         }
 
         const studentId = req.student.student_id;
+        const showAll = req.query.all === 'true'; // Check if ?all=true query param exists
 
-        const { data, error } = await supabase
+        let query = supabase
             .from("notifications")
             .select("*")
-            .eq("student", studentId)
-            .eq("is_read", false) // fetch only unread notifications
-            .order("created_at", { ascending: false });
+            .eq("student", studentId);
+
+        // Only filter by is_read if not showing all
+        if (!showAll) {
+            query = query.eq("is_read", false); // fetch only unread notifications
+        }
+
+        const { data, error } = await query.order("created_at", { ascending: false });
 
         if (error) {
             console.error("Supabase fetch error:", error);

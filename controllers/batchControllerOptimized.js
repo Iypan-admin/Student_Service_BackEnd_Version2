@@ -26,7 +26,7 @@ const getBatchesByCenter = async (req, res) => {
                 *,
                 courses (course_name, type, language, level, mode, program),
                 centers (center_id, center_name),
-                teachers (teacher_id, users (name))
+                teachers (teacher_id, users (name, full_name))
             `)
             .eq('center', center)
             .in('status', ['Approved', 'Started', 'Completed']);
@@ -156,7 +156,7 @@ const getEnrolledBatches = async (req, res) => {
                         course_name, type, language, level, mode, program
                     ),
                     centers (center_id, center_name), 
-                    teachers!batches_teacher_fkey (teacher_id, users (name))
+                    teachers!batches_teacher_fkey (teacher_id, users (name, full_name))
                 )
             `)
             .eq('student', student_id)
