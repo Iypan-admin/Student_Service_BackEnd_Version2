@@ -21,7 +21,15 @@ const lockPaymentMode = async (req, res) => {
                 .eq('enrollment_id', enrollment_id)
                 .single();
 
-            if (enrollmentError || !enrollment) {
+            if (enrollmentError) {
+                console.error('❌ Error fetching enrollment:', enrollmentError);
+                return res.status(500).json({ 
+                    success: false, 
+                    message: "Failed to fetch enrollment details. Please try again." 
+                });
+            }
+
+            if (!enrollment) {
                 return res.status(404).json({ 
                     success: false, 
                     message: "Enrollment not found" 
@@ -29,6 +37,15 @@ const lockPaymentMode = async (req, res) => {
             }
 
             batch_id = enrollment.batch;
+            
+            if (!batch_id) {
+                console.error('⚠️ Enrollment found but batch_id is null:', enrollment_id);
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "Enrollment does not have an associated batch" 
+                });
+            }
+            
             console.log('🔒 Locking payment for batch:', batch_id);
         } else {
             console.log('⚠️ No enrollment_id provided - using legacy global lock');
@@ -74,8 +91,45 @@ const lockPaymentMode = async (req, res) => {
             .select();
 
         if (error) {
-            console.error('Error inserting payment lock:', error);
-            return res.status(500).json({ success: false, message: error.message });
+            console.error('❌ Error inserting payment lock:', error);
+            console.error('Error details:', {
+                code: error.code,
+                message: error.message,
+                details: error.details,
+                hint: error.hint,
+                insertData
+            });
+            
+            // Handle specific database errors
+            if (error.code === '23505') { // Unique constraint violation
+                return res.status(409).json({ 
+                    success: false, 
+                    message: batch_id 
+                        ? "Payment mode already locked for this batch" 
+                        : "Payment mode already locked" 
+                });
+            }
+            
+            if (error.code === '23503') { // Foreign key constraint violation
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "Invalid batch_id. Batch does not exist." 
+                });
+            }
+            
+            if (error.code === '42P01') { // Table does not exist
+                console.error('❌ CRITICAL: student_payment_lock table does not exist!');
+                return res.status(500).json({ 
+                    success: false, 
+                    message: "Database configuration error. Please contact support." 
+                });
+            }
+            
+            // Generic error response
+            return res.status(500).json({ 
+                success: false, 
+                message: error.message || "Failed to lock payment type. Please try again." 
+            });
         }
 
         console.log('✅ Payment lock created:', data);
@@ -83,7 +137,11 @@ const lockPaymentMode = async (req, res) => {
 
     } catch (err) {
         console.error('❌ Lock payment mode error:', err);
-        return res.status(500).json({ success: false, message: "Internal server error" });
+        console.error('Error stack:', err.stack);
+        return res.status(500).json({ 
+            success: false, 
+            message: err.message || "Internal server error. Please try again later." 
+        });
     }
 };
 
