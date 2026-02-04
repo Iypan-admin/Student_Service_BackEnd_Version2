@@ -8,6 +8,8 @@ const razorpay = new Razorpay({
     key_secret: process.env.RAZORPAY_SECRET,
 });
 
+const { sendPaymentReceipt } = require('../utils/emailService');
+
 exports.razorpayWebhook = async (req, res) => {
     try {
         const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
@@ -134,10 +136,22 @@ exports.razorpayWebhook = async (req, res) => {
                         console.error("❌ Supabase insert error (webhook):", error);
                     }
                 } else {
-                    console.log("✅ Payment recorded via webhook:", {
-                        payment_id: payment.id,
-                        order_id: payment.order_id,
-                    });
+                    // ✅ Payment recorded via webhook
+                console.log("✅ Payment recorded via webhook:", {
+                    payment_id: payment.id,
+                    order_id: payment.order_id,
+                });
+
+                // 📧 Send Email Receipt
+                await sendPaymentReceipt(
+                    email,
+                    student_name,
+                    final_fees,
+                    payment.id,
+                    course_name,
+                    payment_type || "full",
+                    current_emi
+                );
                 }
             }
         } catch (err) {
