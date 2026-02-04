@@ -14,7 +14,7 @@ const getStudentAttendance = async (req, res) => {
             });
         }
 
-        console.log('🔍 Getting attendance for student:', student_id);
+
 
         // 1. Get all enrolled batches for the student
         const { data: enrollments, error: enrollmentError } = await supabase
@@ -40,7 +40,7 @@ const getStudentAttendance = async (req, res) => {
             });
         }
 
-        console.log('🔍 Enrolled batches:', enrollments);
+
 
         if (enrollments.length === 0) {
             return res.json({ 
@@ -74,7 +74,7 @@ const getStudentAttendance = async (req, res) => {
             });
         }
 
-        console.log('🔍 Attendance sessions:', sessions);
+
 
         // 3. Get attendance records for the student
         const sessionIds = sessions.map(s => s.id);
@@ -98,7 +98,7 @@ const getStudentAttendance = async (req, res) => {
             });
         }
 
-        console.log('🔍 Attendance records:', records);
+
 
         // 4. Group data by batch
         const batchAttendanceData = enrollments.map(enrollment => {
@@ -186,7 +186,7 @@ const getStudentBatchAttendance = async (req, res) => {
             });
         }
 
-        console.log('🔍 Getting attendance for student:', student_id, 'batch:', batchId);
+
 
         // 1. Verify student is enrolled in this batch
         const { data: enrollment, error: enrollmentError } = await supabase
@@ -233,12 +233,11 @@ const getStudentBatchAttendance = async (req, res) => {
             });
         }
 
-        console.log('🔍 Sessions found for batch:', batchId, 'Count:', sessions?.length || 0);
-        console.log('🔍 Sessions data:', sessions);
+
 
         // 3. Get attendance records for the student
         const sessionIds = sessions.map(s => s.id);
-        console.log('🔍 Session IDs for records query:', sessionIds);
+
         
         const { data: records, error: recordsError } = await supabase
             .from('attendance_records')
@@ -259,8 +258,7 @@ const getStudentBatchAttendance = async (req, res) => {
             });
         }
 
-        console.log('🔍 Records found for student:', student_id, 'Count:', records?.length || 0);
-        console.log('🔍 Records data:', records);
+
 
         // 4. Calculate summary
         const totalSessions = sessions.length;
@@ -273,14 +271,7 @@ const getStudentBatchAttendance = async (req, res) => {
             ? Math.round((presentCount / totalSessions) * 100) 
             : 0;
 
-        console.log('🔍 Calculated summary:', {
-            totalSessions,
-            presentCount,
-            absentCount,
-            lateCount,
-            excusedCount,
-            attendancePercentage
-        });
+
 
         // 5. Create detailed session records
         const sessionDetails = sessions.map(session => {

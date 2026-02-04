@@ -17,11 +17,23 @@ const lsrwRoutes = require('./routes/lsrwRoutes');
 const speakingRoutes = require('./routes/speakingRoutes');
 const readingRoutes = require('./routes/readingRoutes');
 const writingRoutes = require('./routes/writingRoutes');
+const studentCertificateRoutes = require('./routes/studentCertificateRoutes');
 
 dotenv.config();
 
 const app = express();
-app.use(cors());
+
+// CORS configuration with environment variables
+const corsOptions = {
+    origin: process.env.CORS_ORIGINS 
+        ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+        : '*', // Default to allow all origins if not set
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 
 // ✅ Razorpay webhook needs raw body
 app.use("/api/razorpay", webhookPaymentRoutes);
@@ -44,6 +56,7 @@ app.use('/api/lsrw', lsrwRoutes);
 app.use('/api/speaking', speakingRoutes);
 app.use('/api/reading', readingRoutes);
 app.use('/api/writing', writingRoutes);
+app.use('/api/student/certificates', studentCertificateRoutes);
 
 // ✅ Razorpay APIs
 app.use("/api/razorpay", razorpayRoutes);

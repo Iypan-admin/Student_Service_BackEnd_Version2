@@ -134,7 +134,7 @@ const razorpayWebhook = async (req, res) => {
                     .select();
 
                 if (error) console.error("❌ Supabase insert error:", error);
-                else console.log("✅ Payment recorded via Razorpay:", data);
+                else console.log("✅ Payment recorded via Razorpay");
             } catch (err) {
                 console.error("❌ Background DB error:", err);
             }

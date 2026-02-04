@@ -129,7 +129,7 @@ const getStudentDetails = async (req, res) => {
         .from('students')
         .select(`
             student_id, created_at, registration_number, name, email, password, phone, status,
-            is_referred, referred_by_center, profile_picture,
+            is_referred, referred_by_center, profile_picture, date_of_birth,
             state:states (*),
             center:centers!students_center_fkey (*),
             referring_center:centers!students_referred_by_center_fkey (*)
@@ -148,12 +148,19 @@ const getStudentDetails = async (req, res) => {
 
 // Update Student Details
 const updateStudent = async (req, res) => {
-    const { name, state, center, email, phone } = req.body;
+    const { name, state, center, email, phone, date_of_birth } = req.body;
     const student_id = req.student.student_id;
+
+    const updateData = { name, state, center, email, phone };
+    
+    // Only include date_of_birth if it's provided
+    if (date_of_birth !== undefined && date_of_birth !== null && date_of_birth !== '') {
+        updateData.date_of_birth = date_of_birth;
+    }
 
     const { data, error } = await supabase
         .from('students')
-        .update({ name, state, center, email, phone })
+        .update(updateData)
         .eq('student_id', student_id);
 
     if (error) {

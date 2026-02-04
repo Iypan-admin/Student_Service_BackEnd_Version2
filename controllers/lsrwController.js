@@ -149,14 +149,7 @@ const getStudentLSRW = async (req, res) => {
                     };
                     
                     // Debug logging
-                    console.log(`[LSRW Backend] Lesson ${item.title}:`, {
-                        rawVerified: submission.verified,
-                        rawVerifiedType: typeof submission.verified,
-                        verifiedAt: submission.verified_at,
-                        isVerified: isVerified,
-                        itemVerified: item.verified,
-                        submissionVerified: item.submission.verified
-                    });
+
                 } else {
                     item.attempted = false;
                     item.verified = false;
