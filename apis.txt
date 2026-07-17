@@ -1,0 +1,56 @@
+POST http://localhost:5000/api/students/register
+Content-Type: application/json
+
+{
+  "registration_number": "REG12345",
+  "name": "John Doe",
+  "state": "California",
+  "center": "Center1",
+  "email": "johndoe@example.com",
+  "password": "securepass123",
+  "phone": "9876543210"
+}
+
+POST http://localhost:5000/api/students/login
+Content-Type: application/json
+
+{
+  "registration_number": "REG12345",
+  "password": "securepass123"
+}
+
+
+PUT http://localhost:5000/api/students/update
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "John Updated",
+  "state": "Texas",
+  "phone": "9998887776"
+}
+
+
+DELETE http://localhost:5000/api/students/delete
+Authorization: Bearer <token>
+
+
+Batche controller
+
+GET http://localhost:5000/api/batches/list
+Authorization: Bearer <token>
+
+POST http://localhost:5000/api/batches/enroll
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "batch_id": 5
+}
+
+GET /class/notes/123
+Authorization: Bearer <JWT_TOKEN>
+
+
+GET /class/gmeets/123
+Authorization: Bearer <JWT_TOKEN>
