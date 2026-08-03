@@ -87,7 +87,7 @@ const registerStudent = async (req, res) => {
             .select('email')
             .eq('role', 'academic');
 
-        let managerEmail = 'bharathidev20@gmail.com';
+        let managerEmail = 'hr.isml.ipeducen@gmail.com';
         if (academicUsers && academicUsers.length > 0 && academicUsers[0].email) {
             managerEmail = academicUsers[0].email;
         }

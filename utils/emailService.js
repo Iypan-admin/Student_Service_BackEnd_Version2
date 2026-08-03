@@ -72,7 +72,7 @@ const sendPaymentReceipt = async (to, studentName, amount, paymentId, courseName
 
 const sendNewStudentRegistrationAlert = async (to, studentName, studentEmail, studentPhone) => {
     try {
-        const recipient = to || 'bharathidev20@gmail.com';
+        const recipient = to || 'hr.isml.ipeducen@gmail.com';
         const mailOptions = {
             from: `"ISML ERP System" <${process.env.MAIL_USER}>`,
             to: recipient,
