@@ -6,6 +6,7 @@ const { get } = require('../routes/batchRoutes');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const path = require('path');
+const { sendNewStudentRegistrationAlert } = require('../utils/emailService');
 
 // Register Student
 const registerStudent = async (req, res) => {
@@ -77,6 +78,25 @@ const registerStudent = async (req, res) => {
     }
 
     const student = data[0];
+
+    // Send email alert to Academic Manager (ARUNJUNAI: bharathidev20@gmail.com)
+    try {
+        // Fetch academic manager email dynamically from users table or fallback to bharathidev20@gmail.com
+        const { data: academicUsers } = await supabase
+            .from('users')
+            .select('email')
+            .eq('role', 'academic');
+
+        let managerEmail = 'bharathidev20@gmail.com';
+        if (academicUsers && academicUsers.length > 0 && academicUsers[0].email) {
+            managerEmail = academicUsers[0].email;
+        }
+
+        // Trigger email notification
+        sendNewStudentRegistrationAlert(managerEmail, name, email, phone);
+    } catch (emailErr) {
+        console.error('Error sending registration email to Academic Manager:', emailErr);
+    }
 
     // Create notification for Academic Coordinators when student registers (status = false means pending approval)
     try {

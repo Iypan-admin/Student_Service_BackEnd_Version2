@@ -70,4 +70,62 @@ const sendPaymentReceipt = async (to, studentName, amount, paymentId, courseName
     }
 };
 
-module.exports = { sendPaymentReceipt };
+const sendNewStudentRegistrationAlert = async (to, studentName, studentEmail, studentPhone) => {
+    try {
+        const recipient = to || 'bharathidev20@gmail.com';
+        const mailOptions = {
+            from: `"ISML ERP System" <${process.env.MAIL_USER}>`,
+            to: recipient,
+            subject: `Action Required: New Student Registered - ${studentName}`,
+            html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px; background-color: #ffffff;">
+                <div style="background-color: #1a237e; color: #ffffff; padding: 15px; border-radius: 8px 8px 0 0; text-align: center;">
+                    <h2 style="margin: 0; font-size: 20px;">ISML Portal - New Student Registration</h2>
+                </div>
+                <div style="padding: 20px; color: #333;">
+                    <p style="font-size: 15px;">Dear Academic Manager,</p>
+                    <p style="font-size: 14px; color: #555;">A new student has registered on the ISML portal and is waiting for your review and approval.</p>
+                    
+                    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #1a237e; margin: 20px 0;">
+                        <h3 style="margin-top: 0; color: #1a237e; font-size: 16px;">Student Registration Details</h3>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #555; width: 35%;">Student Name:</td>
+                                <td style="padding: 8px 0; color: #111;">${studentName}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #555;">Email Address:</td>
+                                <td style="padding: 8px 0; color: #111;">${studentEmail}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #555;">Phone Number:</td>
+                                <td style="padding: 8px 0; color: #111;">${studentPhone || 'N/A'}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: bold; color: #555;">Status:</td>
+                                <td style="padding: 8px 0;"><span style="background-color: #fff3cd; color: #856404; padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 12px;">Pending Approval</span></td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <p style="text-align: center; margin-top: 25px;">
+                        <a href="https://adminportal.iypan.com" style="background-color: #1a237e; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Open Admin Portal to Approve</a>
+                    </p>
+                </div>
+                <div style="text-align: center; color: #888; font-size: 12px; margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px;">
+                    This is an automated notification from ISML ERP System.
+                </div>
+            </div>
+            `
+        };
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`✅ Registration alert email sent to Academic Manager (${recipient}):`, info.messageId);
+        return true;
+    } catch (error) {
+        console.error("❌ Error sending registration alert email to Academic Manager:", error);
+        return false;
+    }
+};
+
+module.exports = { sendPaymentReceipt, sendNewStudentRegistrationAlert };
