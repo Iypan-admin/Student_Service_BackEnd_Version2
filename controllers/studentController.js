@@ -146,7 +146,7 @@ const loginStudent = async (req, res) => {
     const { data: students, error } = await supabase
         .from('students')
         .select('*')
-        .eq('registration_number', registration_number)
+        .or(`registration_number.eq.${registration_number},email.eq.${registration_number}`)
         .limit(1);
 
     if (error || students.length === 0) {
