@@ -1,6 +1,12 @@
 const supabase = require('../config/supabaseClient');
 
 /**
+ * Attendance Feature Launch Date (YYYY-MM-DD in IST): 2026-10-07
+ * Legacy/test sessions created prior to this date are strictly excluded.
+ */
+const FEATURE_START_DATE = '2026-10-07';
+
+/**
  * Get student's attendance for all enrolled batches
  */
 const getStudentAttendance = async (req, res) => {
@@ -52,7 +58,7 @@ const getStudentAttendance = async (req, res) => {
             });
         }
 
-        // 2. Get attendance sessions for all enrolled batches
+        // 2. Get attendance sessions for all enrolled batches (from feature launch date onwards)
         const batchIds = enrollments.map(e => e.batch);
         const { data: sessions, error: sessionsError } = await supabase
             .from('attendance_sessions')
@@ -64,6 +70,7 @@ const getStudentAttendance = async (req, res) => {
                 created_at
             `)
             .in('batch_id', batchIds)
+            .gte('session_date', FEATURE_START_DATE)
             .order('session_date', { ascending: false });
 
         if (sessionsError) {
@@ -213,7 +220,7 @@ const getStudentBatchAttendance = async (req, res) => {
             });
         }
 
-        // 2. Get attendance sessions for this batch
+        // 2. Get attendance sessions for this batch (from feature launch date onwards)
         const { data: sessions, error: sessionsError } = await supabase
             .from('attendance_sessions')
             .select(`
@@ -223,6 +230,7 @@ const getStudentBatchAttendance = async (req, res) => {
                 created_at
             `)
             .eq('batch_id', batchId)
+            .gte('session_date', FEATURE_START_DATE)
             .order('session_date', { ascending: false });
 
         if (sessionsError) {

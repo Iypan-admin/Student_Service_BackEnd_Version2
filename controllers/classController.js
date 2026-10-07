@@ -125,11 +125,12 @@ const getGMeetsByBatch = async (req, res) => {
         // If student_id is available, fetch student's attendance
         if (student_id && dataWithStatus && dataWithStatus.length > 0) {
             try {
-                // Get all attendance_sessions for merged batch IDs
+                // Get all attendance_sessions for merged batch IDs (from feature launch date onwards)
                 const { data: attendanceSessions, error: sessionsError } = await supabase
                     .from('attendance_sessions')
                     .select('id, batch_id, session_date')
-                    .in('batch_id', mergedBatchIds);
+                    .in('batch_id', mergedBatchIds)
+                    .gte('session_date', '2026-10-07');
 
                 if (!sessionsError && attendanceSessions && attendanceSessions.length > 0) {
                     const sessionIds = attendanceSessions.map(s => s.id);
